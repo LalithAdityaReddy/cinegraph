@@ -7,6 +7,7 @@ import bcrypt
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
+from requests.exceptions import RequestException
 
 
 TMDB_API_KEY = os.getenv("TMDB_API_KEY") or "f69949784723a72b59309f686c6c6394"
@@ -52,12 +53,23 @@ def get_connection():
 # TMDB FETCH
 # =============================
 def fetch_tmdb_movie(tmdb_id):
-    r = requests.get(
-        f"{TMDB_BASE}/movie/{tmdb_id}",
-        params={"api_key": TMDB_API_KEY},
-        timeout=10
-    )
-    return r.json() if r.status_code == 200 else None
+    try:
+        r = requests.get(
+            f"{TMDB_BASE}/movie/{tmdb_id}",
+            params={"api_key": TMDB_API_KEY},
+            timeout=6
+        )
+    except requests.exceptions.RequestException:
+        return None   # ⛔ NEVER crash Streamlit
+
+    if r.status_code != 200:
+        return None
+
+    try:
+        return r.json()
+    except Exception:
+        return None
+
 
 # =============================
 # HOME FEED
@@ -126,11 +138,17 @@ def fetch_movie_details(tmdb_id):
         return movie
 
     # 2️⃣ Fetch from TMDB
-    tmdb = fetch_tmdb_movie(tmdb_id)
+    # 2️⃣ Fetch from TMDB (SAFE)
+    try:
+        tmdb = fetch_tmdb_movie(tmdb_id)
+    except Exception:
+        tmdb = None
+
     if not tmdb:
         cur.close()
         conn.close()
         return None
+
 
     # ✅ SAFE release_date handling
     release_date = tmdb.get("release_date")
@@ -628,29 +646,36 @@ def toggle_diary(user_id: int, tmdb_id: int):
                     FROM movies
                     WHERE tmdb_id = %s
                 """, (user_id, tmdb_id))
-
-            conn.commit()
 def search_tmdb_movies(query: str, page: int = 1, limit: int = 20):
-    r = requests.get(
-        f"{TMDB_BASE}/search/movie",
-        params={
-            "api_key": TMDB_API_KEY,
-            "query": query,
-            "page": page
-        },
-        timeout=10
-    )
+    if not query or len(query.strip()) < 3:
+        return []
+
+    try:
+        r = requests.get(
+            f"{TMDB_BASE}/search/movie",
+            params={
+                "api_key": TMDB_API_KEY,
+                "query": query,
+                "page": page
+            },
+            timeout=6
+        )
+    except RequestException:
+        return []
 
     if r.status_code != 200:
         return []
 
-    data = r.json().get("results", [])
+    try:
+        data = r.json().get("results", [])
+    except Exception:
+        return []
 
     movies = []
-    for m in data:
+    for m in data[:limit]:
         movies.append({
-            "tmdb_id": m["id"],
-            "title": m["title"],
+            "tmdb_id": m.get("id"),
+            "title": m.get("title", ""),
             "poster_url": (
                 f"https://image.tmdb.org/t/p/w500{m['poster_path']}"
                 if m.get("poster_path") else None
@@ -658,31 +683,43 @@ def search_tmdb_movies(query: str, page: int = 1, limit: int = 20):
         })
 
     return movies
+
+
+
 def search_tmdb_suggestions(query: str, limit: int = 6):
-    r = requests.get(
-        f"{TMDB_BASE}/search/movie",
-        params={
-            "api_key": TMDB_API_KEY,
-            "query": query,
-            "page": 1
-        },
-        timeout=10
-    )
+    if not query or len(query.strip()) < 3:
+        return []
+
+    try:
+        r = requests.get(
+            f"{TMDB_BASE}/search/movie",
+            params={
+                "api_key": TMDB_API_KEY,
+                "query": query,
+                "page": 1
+            },
+            timeout=6   # ⬅ reduce timeout
+        )
+    except RequestException as e:
+        # 🔇 silent fail (do NOT crash Streamlit)
+        return []
 
     if r.status_code != 200:
         return []
 
-    results = r.json().get("results", [])[:limit]
+    try:
+        results = r.json().get("results", [])[:limit]
+    except Exception:
+        return []
 
     return [
         {
-            "tmdb_id": m["id"],
-            "title": m["title"],
-            "year": m.get("release_date", "")[:4]
+            "tmdb_id": m.get("id"),
+            "title": m.get("title", ""),
+            "year": (m.get("release_date") or "")[:4]
         }
         for m in results
     ]
-
 
 
 

@@ -8,15 +8,17 @@ from db import (
     fetch_user_watchlist,
     fetch_followers_feed,
     insert_or_update_review,
-fetch_user_review_for_movie,
+    fetch_user_review_for_movie,
     has_liked_review,
     like_review,
     unlike_review,
     trending_among_friends,
     get_user_top_genres
 )
+import time
 from recommender import cinemamaya_recommendations
 
+from db import fetch_tmdb_movie
 from db import search_tmdb_movies
 
 from db import (
@@ -37,93 +39,147 @@ TMDB_IMG = "https://image.tmdb.org/t/p/w500"
 st.set_page_config(
     page_title="CINEGRAPH",
     page_icon="🎬",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 st.markdown("""
 <style>
 
 /* ===============================
-   CORE COLORS (Letterboxd Style)
+   GLOBAL THEME (222831 Palette)
    =============================== */
+
 :root {
-    --bg-main: #0e0f11;
-    --bg-panel: #16181d;
-    --bg-card: #1b1e24;
-    --border-soft: #2a2e36;
+    --bg-main: #222831;
+    --bg-sidebar: #1e2229;
+    --bg-card: #31363F;
+    --border-soft: #3b414d;
 
-    --text-main: #e6e6e6;
-    --text-muted: #a0a4ad;
+    --text-main: #EEEEEE;
+    --text-muted: #BFC3C9;
 
-    --accent-green: #00c030;
-    --accent-blue: #40bcf4;
+    --accent: #76ABAE;
 }
 
 /* ===============================
    APP BACKGROUND
    =============================== */
-[data-testid="stAppViewContainer"] {
+
+.stApp {
     background-color: var(--bg-main);
-    color: var(--text-main);
 }
 
 /* ===============================
    SIDEBAR
    =============================== */
-[data-testid="stSidebar"] {
-    background-color: #0b0c0f;
+
+section[data-testid="stSidebar"] {
+    background-color: var(--bg-sidebar);
     border-right: 1px solid var(--border-soft);
+    min-width: 220px;
+    max-width: 220px;
 }
 
-[data-testid="stSidebar"] * {
+section[data-testid="stSidebar"] * {
     color: var(--text-main) !important;
+    font-weight: 500;
+}
+
+section[data-testid="stSidebar"] > div {
+    padding-top: 1rem;
 }
 
 /* Sidebar buttons */
-[data-testid="stSidebar"] .stButton > button {
-    background: var(--bg-panel);
+section[data-testid="stSidebar"] .stButton > button {
+    background-color: var(--bg-card);
     border: 1px solid var(--border-soft);
     color: var(--text-main);
     border-radius: 10px;
-    padding: 10px 14px;
+    padding: 9px 12px;
+    margin-bottom: 6px;
     width: 100%;
     text-align: left;
 }
 
-[data-testid="stSidebar"] .stButton > button:hover {
-    background: #22262d;
-    border-color: var(--accent-green);
+/* Hover */
+section[data-testid="stSidebar"] .stButton > button:hover {
+    background-color: var(--accent);
+    color: #000000;
+    border-color: var(--accent);
+}
+
+/* Remove icons / arrows */
+section[data-testid="stSidebar"] .stButton > button::before,
+section[data-testid="stSidebar"] .stButton > button::after,
+section[data-testid="stSidebar"] .stButton svg {
+    display: none !important;
 }
 
 /* ===============================
-   HEADINGS & TEXT
+   MAIN CONTENT
    =============================== */
-h1, h2, h3, h4 {
-    color: #ffffff;
-}
 
-p, span, label {
+h1, h2, h3, h4 {
     color: var(--text-main) !important;
 }
 
-/* Muted captions */
+p, span, label, div {
+    color: var(--text-main) !important;
+}
+
 small, .stCaption {
     color: var(--text-muted) !important;
 }
 
 /* ===============================
-   MOVIE CARD
+   BUTTONS
    =============================== */
+
+.stButton > button {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-soft);
+    color: var(--text-main);
+    border-radius: 10px;
+    font-weight: 600;
+}
+
+.stButton > button:hover {
+    background-color: var(--accent);
+    color: #000000;
+    border-color: var(--accent);
+}
+
+/* ===============================
+   INPUTS
+   =============================== */
+
+textarea, input {
+    background-color: var(--bg-card) !important;
+    color: var(--text-main) !important;
+    border: 1px solid var(--border-soft) !important;
+    border-radius: 10px !important;
+}
+
+textarea::placeholder,
+input::placeholder {
+    color: var(--text-muted) !important;
+}
+
+/* ===============================
+   MOVIE CARDS
+   =============================== */
+
 .movie-card {
-    background: var(--bg-card);
+    background-color: var(--bg-card);
     border-radius: 14px;
     padding: 10px;
     border: 1px solid var(--border-soft);
-    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    transition: transform 0.2s ease, border-color 0.2s ease;
 }
 
 .movie-card:hover {
-    transform: translateY(-6px);
-    box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+    transform: translateY(-4px);
+    border-color: var(--accent);
 }
 
 .movie-title {
@@ -133,137 +189,26 @@ small, .stCaption {
 }
 
 /* ===============================
-   BUTTONS (NO YELLOW)
+   DIVIDERS
    =============================== */
-.stButton > button {
-    background: #20232a;
-    color: var(--text-main);
-    border: 1px solid var(--border-soft);
-    border-radius: 10px;
-    font-weight: 600;
-}
 
-.stButton > button:hover {
-    background: #262a33;
-    border-color: var(--accent-blue);
+hr {
+    border-color: var(--border-soft);
 }
 
 /* ===============================
-   TEXT INPUTS / REVIEW BOX
-   =============================== */
-textarea, input {
-    background-color: #0f1115 !important;
-    color: var(--text-main) !important;
-    border: 1px solid var(--border-soft) !important;
-    border-radius: 12px !important;
-}
-
-textarea::placeholder {
-    color: var(--text-muted);
-}
-
-/* ===============================
-   STAR RATING
-   =============================== */
-.star {
-    font-size: 30px;
-    cursor: pointer;
-}
-
-.star-active {
-    color: var(--accent-green);
-}
-
-.star-inactive {
-    color: #444;
-}
-
-/* ===============================
-   CINEMAMAYA PANEL
-   =============================== */
-.cinemamaya {
-    background: linear-gradient(180deg, #15171c, #0f1115);
-    border-radius: 18px;
-    padding: 20px;
-    border: 1px solid var(--border-soft);
-}
-
-</style>
-""", unsafe_allow_html=True)
-st.markdown("""
-<style>
-
-/* ===============================
-   FORCE TEXT VISIBILITY FIX
+   REMOVE STREAMLIT HEADER GAP
    =============================== */
 
-/* All buttons */
-button, .stButton button {
-    color: #ffffff !important;
-    background-color: #1f222a !important;
-    border: 1px solid #3a3f4b !important;
-}
-
-/* Button hover */
-button:hover {
-    background-color: #2a2f3a !important;
-}
-
-/* Submit buttons inside forms */
-button[kind="primary"] {
-    background-color: #00c030 !important;
-    color: #000000 !important;
-    font-weight: 700 !important;
-}
-
-/* Text inside inputs & textareas */
-textarea, input {
-    color: #ffffff !important;
-}
-
-/* Placeholder text */
-textarea::placeholder, input::placeholder {
-    color: #9aa0aa !important;
-}
-
-/* ===============================
-   STAR RATING VISIBILITY
-   =============================== */
-.star-btn {
-    font-size: 32px;
-    background: transparent !important;
-    border: none !important;
-    color: #444 !important;
-}
-
-.star-btn.active {
-    color: #00c030 !important;
-}
-
-/* Fix emoji rendering */
-span, p {
-    color: #ffffff !important;
-}
-
-</style>
-""", unsafe_allow_html=True)
-st.markdown("""
-<style>
-/* REMOVE STREAMLIT DEFAULT HEADER GAP */
 header, .stApp > header {
-    background: transparent !important;
     height: 0px !important;
+    background: transparent !important;
 }
 
-/* Remove top padding */
 .block-container {
-    padding-top: 1rem !important;
+    padding-top: 1.5rem !important;
 }
 
-/* Force app background */
-.stApp {
-    background: radial-gradient(circle at top, #0f1115, #000000);
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -297,8 +242,9 @@ if "search_page" not in st.session_state:
 # =============================
 params = st.query_params
 
-if "view" in params:
-    st.session_state.view = params.get("view", st.session_state.view)
+# if "view" in params and "view" not in st.session_state:
+#     st.session_state.view = params.get("view", "home")
+
 
 if "page" in params:
     st.session_state.page = int(params.get("page", st.session_state.page))
@@ -306,8 +252,9 @@ if "page" in params:
 if "tmdb_id" in params:
     st.session_state.selected_tmdb_id = int(params["tmdb_id"])
 
-if "q" in params:
-    st.session_state.search_query = params.get("q", "")
+# if "q" in params and st.session_state.view == "home":
+#     st.session_state.search_query = params.get("q", "")
+
 
 if "sp" in params:
     st.session_state.search_page = int(params.get("sp", 1))
@@ -315,27 +262,23 @@ if "sp" in params:
 def goto(view, tmdb_id=None, q=None, page=None, sp=None):
     st.session_state.view = view
 
-    st.query_params.clear()
-    st.query_params["view"] = view
+    # reset search when switching views
+    if view != "home":
+        st.session_state.search_query = ""
 
     if tmdb_id is not None:
         st.session_state.selected_tmdb_id = tmdb_id
-        st.query_params["tmdb_id"] = str(tmdb_id)
 
     if q is not None:
         st.session_state.search_query = q
-        st.query_params["q"] = q
 
     if page is not None:
         st.session_state.page = page
-        st.query_params["page"] = str(page)
 
     if sp is not None:
         st.session_state.search_page = sp
-        st.query_params["sp"] = str(sp)
 
     st.rerun()
-
 
 # =============================
 # AUTH GUARD
@@ -401,30 +344,6 @@ if st.session_state.current_user is None:
 
     st.stop()
 
-# =============================
-# ROUTING
-# =============================
-
-if st.session_state.current_user is None:
-    st.title("🔐 Login")
-
-    with st.form("login_form"):
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-        submit = st.form_submit_button("Login")
-
-    if submit:
-        from db import authenticate_user
-        user = authenticate_user(username, password)
-
-        if user:
-            st.session_state.current_user = user
-            st.success("Login successful!")
-            st.rerun()
-        else:
-            st.error("Invalid username or password")
-
-    st.stop()
 
 # =============================
 # UI HELPERS
@@ -450,7 +369,7 @@ def poster_grid(items, cols=6, show_reason=False):
                 st.markdown('<div class="movie-card">', unsafe_allow_html=True)
 
                 if m.get("poster_url"):
-                    st.image(m["poster_url"], use_container_width=True)
+                    st.image(m["poster_url"], use_column_width=True)
                 else:
                     st.write("🖼️ No poster")
 
@@ -471,28 +390,33 @@ def poster_grid(items, cols=6, show_reason=False):
 # SIDEBAR
 # =============================
 with st.sidebar:
-    st.markdown(f"### 👤 {st.session_state.current_user['username']}")
+    st.markdown("## 🎬 CINEGRAPH")
+
+    st.markdown(f"👤 **{st.session_state.current_user['username']}**")
+
+    if st.button("Home"):
+        goto("home")
+
+    if st.button("My Diary"):
+        goto("diary")
+
+    if st.button("My Watchlist"):
+        goto("watchlist")
+
+    if st.button("Friends Feed"):
+        goto("feed")
+
+    if st.button("Insights"):
+        goto("insights")
+
+    if st.button("🌌 CINEMAMAYA"):
+        goto("cinemamaya")
+
+    st.markdown("---")
 
     if st.button("🚪 Logout"):
         st.session_state.current_user = None
         st.rerun()
-
-    st.markdown("---")
-
-    if st.button("🏠 Home"):
-        goto("home")
-    if st.button("📓 My Diary"):
-        goto("diary")
-    if st.button("📌 My Watchlist"):
-        goto("watchlist")
-    if st.button("👥 Friends Feed"):
-        goto("feed")
-    if st.button("📊 Insights"):
-        goto("insights")
-    if st.button("🌌 CINEMAMAYA"):
-        goto("cinemamaya")
-
-
 
 # =============================
 # HEADER
@@ -508,78 +432,60 @@ st.divider()
 from db import authenticate_user, create_user
 
 # =============================
-# HOME
-# =============================
-# =============================
 # HOME VIEW
 # =============================
 if st.session_state.view == "home":
 
     st.subheader("🏠 Home Feed")
 
-    query = st.text_input(
-        "🔍 Search movies (TMDB – real time)",
-        value=st.session_state.search_query,
-        placeholder="Type a movie name..."
-    )
+    # ---------- SEARCH INPUT (CONTROLLED) ----------
+    with st.form("search_form"):
+        query = st.text_input(
+            "🔍 Search movies (TMDB – real time)",
+            value=st.session_state.search_query,
+            placeholder="Type at least 3 characters and press Enter"
+        )
+        search_submit = st.form_submit_button("Search")
+
+    if search_submit:
+        st.session_state.search_query = query.strip()
+        st.session_state.page = 0
+        st.rerun()
 
     # =============================
     # SEARCH MODE
     # =============================
-    if query.strip():
+    if st.session_state.search_query:
 
-        # 🔁 Reset page when query changes
-        if query != st.session_state.search_query:
-            st.session_state.search_query = query
-            st.session_state.search_page = 1
+        q = st.session_state.search_query
 
         # ---------- AUTOCOMPLETE ----------
-        suggestions = search_tmdb_suggestions(query)
+        suggestions = []
+        if len(q) >= 3:
+            suggestions = search_tmdb_suggestions(q)
 
         if suggestions:
             st.markdown("#### 🎯 Suggestions")
-            for s in suggestions[:5]:
+            for s in suggestions:
                 if st.button(
                     f"{s['title']} ({s['year']})",
                     key=f"suggest_{s['tmdb_id']}"
                 ):
-                    goto("details", s["tmdb_id"])
+                    st.session_state.selected_tmdb_id = s["tmdb_id"]
+                    st.session_state.view = "details"
+                    st.rerun()
 
         # ---------- SEARCH RESULTS ----------
-        results = search_tmdb_movies(
-            st.session_state.search_query,
-            page=st.session_state.search_page
-        )
+        results = search_tmdb_movies(q, page=1)
 
-        st.subheader(f"🔎 Results for: {st.session_state.search_query}")
+        st.subheader(f"🔎 Results for: {q}")
         poster_grid(results)
 
-        # ---------- SEARCH PAGINATION ----------
-        col1, col2, col3 = st.columns([1, 2, 1])
-
-        with col1:
-            if st.session_state.search_page > 1:
-                if st.button("⬅ Previous", key="search_prev"):
-                    goto(
-                        "home",
-                        q=st.session_state.search_query,
-                        sp=st.session_state.search_page - 1
-                    )
-
-        with col3:
-            if st.button("Next ➡", key="search_next"):
-                goto(
-                    "home",
-                    q=st.session_state.search_query,
-                    sp=st.session_state.search_page + 1
-                )
-
-        # ---------- BACK TO HOME ----------
         st.divider()
+
         if st.button("🏠 Back to Home"):
             st.session_state.search_query = ""
-            st.session_state.search_page = 1
-            goto("home", page=0)
+            goto("home")
 
     # =============================
     # NORMAL HOME FEED
@@ -602,6 +508,7 @@ if st.session_state.view == "home":
             if st.button("Next ➡"):
                 goto("home", page=st.session_state.page + 1)
 
+
 # =============================
 # DIARY
 # =============================
@@ -620,7 +527,7 @@ elif st.session_state.view == "diary":
             cols = st.columns([1, 4])
             with cols[0]:
                 if d["poster_url"]:
-                    st.image(d["poster_url"], use_container_width=True)
+                    st.image(d["poster_url"], use_column_width=True)
             with cols[1]:
                 st.markdown(f"### {d['title']}")
                 st.write(f"⭐ Rating: {d['rating']}")
@@ -644,7 +551,7 @@ elif st.session_state.view == "watchlist":
             cols = st.columns([1, 4])
             with cols[0]:
                 if w["poster_url"]:
-                    st.image(w["poster_url"], use_container_width=True)
+                    st.image(w["poster_url"], use_column_width=True)
             with cols[1]:
                 st.markdown(f"### {w['title']}")
                 st.caption(f"Priority: {w['priority']}")
@@ -676,11 +583,11 @@ elif st.session_state.view == "feed":
             if following:
                 if st.button("Unfollow", key=f"unfollow_{p['user_id']}"):
                     unfollow_user(user["user_id"], p["user_id"])
-                    st.rerun()
+                    goto("feed")
             else:
                 if st.button("Follow", key=f"follow_{p['user_id']}"):
                     follow_user(user["user_id"], p["user_id"])
-                    st.rerun()
+                    goto("feed")
 
     st.divider()
 
@@ -699,7 +606,7 @@ elif st.session_state.view == "feed":
 
             with cols[0]:
                 if f["poster_url"]:
-                    st.image(f["poster_url"], use_container_width=True)
+                    st.image(f["poster_url"], use_column_width=True)
 
             with cols[1]:
                 st.markdown(
@@ -732,7 +639,6 @@ elif st.session_state.view == "details":
     movie = fetch_movie_details(tmdb_id)
 
     if not movie:
-        from db import fetch_tmdb_movie
         tmdb_movie = fetch_tmdb_movie(tmdb_id)
 
         if not tmdb_movie:
@@ -757,7 +663,7 @@ elif st.session_state.view == "details":
         if movie.get("poster_path"):
             st.image(
                 f"{TMDB_IMG}{movie['poster_path']}",
-                use_container_width=True
+                use_column_width=True
             )
 
     with col2:
@@ -851,8 +757,7 @@ elif st.session_state.view == "details":
             )
 
             submit = st.form_submit_button(
-                "Submit Review",
-                use_container_width=True
+                "Submit Review"
             )
 
         # ---------- SUBMIT HANDLER ----------
@@ -875,8 +780,9 @@ elif st.session_state.view == "details":
                     "Review added successfully!"
                 )
 
-                st.session_state.star_rating = 0
-                st.rerun()
+                st.session_state.star_rating = 0 
+                goto("details", tmdb_id)
+
     else:
         st.info("Login to write a review.")
 
@@ -920,7 +826,7 @@ elif st.session_state.view == "details":
                             st.rerun()
 
             with c2:
-                st.caption(f"⭐ {r['rating']} · ❤️ {r['like_count']}")
+                st.caption(f"⭐ {r['rating']}")
 
 # =============================
 # INSIGHTS
@@ -955,7 +861,7 @@ elif st.session_state.view == "cinemamaya":
     st.caption("Curated from your taste, reviews & watch history")
 
     if st.button("🔄 Refresh Recommendations"):
-        st.session_state.cinemamaya_refresh += 1
+        st.session_state.cinemamaya_refresh = time.time()
         st.rerun()
 
     recs = cinemamaya_recommendations(
