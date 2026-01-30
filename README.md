@@ -15,6 +15,8 @@ CINEGRAPH is a social movie discovery platform that allows users to explore movi
 - Frontend: Streamlit
 - Backend: Python
 - Database: PostgreSQL
+- ![1000127832](https://github.com/user-attachments/assets/44ea7b23-fdca-4c4a-9c17-5e99270c65a0)
+
 - ML: Scikit-learn
 - API: TMDB
 
