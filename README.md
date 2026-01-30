@@ -32,3 +32,6 @@ CINEMAMAYA uses:
 ```bash
 pip install -r requirements.txt
 streamlit run app.py
+
+## how to use
+To use the code base.. make sure you create the tables accordingly .. as mentioned in ER diagram and start Installation steps
