@@ -1,4 +1,4 @@
-# 🎬 CINEGRAPH
+# CINEGRAPH
 
 CINEGRAPH is a social movie discovery platform that allows users to explore movies, write reviews, follow friends, and receive AI-powered personalized recommendations.
 
