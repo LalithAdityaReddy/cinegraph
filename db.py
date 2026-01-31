@@ -720,6 +720,49 @@ def search_tmdb_suggestions(query: str, limit: int = 6):
         }
         for m in results
     ]
+def fetch_user_ratings(user_id: int):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT rating
+        FROM reviews
+        WHERE user_id = %s
+    """, (user_id,))
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [r[0] for r in rows]
+def fetch_diary_activity(user_id: int):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT watched_date, COUNT(*)
+        FROM diary
+        WHERE user_id = %s
+        GROUP BY watched_date
+        ORDER BY watched_date
+    """, (user_id,))
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return rows
+def fetch_user_activity_counts(user_id: int):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("SELECT COUNT(*) FROM reviews WHERE user_id=%s", (user_id,))
+    reviews = cur.fetchone()[0]
+
+    cur.execute("SELECT COUNT(*) FROM diary WHERE user_id=%s", (user_id,))
+    diary = cur.fetchone()[0]
+
+    cur.execute("SELECT COUNT(*) FROM watchlist WHERE user_id=%s", (user_id,))
+    watchlist = cur.fetchone()[0]
+
+    cur.close()
+    conn.close()
+    return reviews, diary, watchlist
+
 
 
 

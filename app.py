@@ -13,8 +13,18 @@ from db import (
     like_review,
     unlike_review,
     trending_among_friends,
-    get_user_top_genres
+    get_user_top_genres,
+    fetch_user_ratings,       
+    fetch_diary_activity,       
+    fetch_user_activity_counts   
 )
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd 
+import numpy as np
+import matplotlib.dates as mdates
+
+sns.set_theme(style="darkgrid")
 import time
 from recommender import cinemamaya_recommendations
 
@@ -836,23 +846,246 @@ elif st.session_state.view == "insights":
         st.warning("Select a user first")
         st.stop()
 
-    st.subheader("📊 Insights")
+    user_id = st.session_state.current_user["user_id"]
 
-    st.markdown("### 🎭 Top Genres")
-    genres = get_user_top_genres(st.session_state.current_user["user_id"])
-    if genres:
-        for g, c in genres:
-            st.write(f"{g} → {c}")
-    else:
-        st.info("No genre data yet.")
+    st.title("Insights Dashboard")
+    st.caption("Visual analysis of user taste, behavior, and personalization strength")
 
-    st.markdown("### 🔥 Trending Among Friends")
-    trends = trending_among_friends(st.session_state.current_user["user_id"])
-    if trends:
-        for t, c in trends:
-            st.write(f"{t} → {c}")
-    else:
-        st.info("No trends yet.")
+    st.divider()
+
+    # ==================================================
+    # 1. GENRE AFFINITY (INTENSITY FIXED)
+    # ==================================================
+    col_chart, col_text = st.columns([2, 1])
+    genres = get_user_top_genres(user_id)
+
+    with col_chart:
+        st.subheader("Genre Affinity")
+
+        if genres:
+            genre_df = pd.DataFrame(genres, columns=["Genre", "Count"])
+            genre_df = genre_df.sort_values("Count", ascending=True)
+
+            palette = sns.color_palette("Blues", len(genre_df))
+
+            fig, ax = plt.subplots(figsize=(7, 4))
+            sns.barplot(
+                data=genre_df,
+                x="Count",
+                y="Genre",
+                palette=palette,
+                ax=ax
+            )
+
+            ax.set_title("Most Watched Genres")
+            ax.set_xlabel("Movies Watched")
+            ax.set_ylabel("")
+            plt.tight_layout()
+            st.pyplot(fig)
+        else:
+            st.info("No genre data available yet.")
+
+    with col_text:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.markdown("### Explanation")
+        st.write(
+            "Genres with darker bars represent stronger preferences. "
+            "This genre affinity forms the primary basis of personalized recommendations."
+        )
+
+    st.divider()
+
+    # ==================================================
+    # 2. RATING BEHAVIOR
+    # ==================================================
+    col_chart, col_text = st.columns([2, 1])
+    ratings = fetch_user_ratings(user_id)
+
+    with col_chart:
+        st.subheader("Rating Behavior")
+
+        if ratings:
+            fig, ax = plt.subplots(figsize=(7, 4))
+            sns.histplot(
+                ratings,
+                bins=5,
+                kde=True,
+                color="#7C3AED",
+                ax=ax
+            )
+
+            ax.set_title("Rating Distribution")
+            ax.set_xlabel("Rating (1–5)")
+            ax.set_ylabel("Frequency")
+            plt.tight_layout()
+            st.pyplot(fig)
+        else:
+            st.info("No ratings available yet.")
+
+    with col_text:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.markdown("### Explanation")
+        st.write(
+            "This distribution shows how strictly or generously you rate movies. "
+            "It influences how selective recommendations become."
+        )
+
+    st.divider()
+
+    # ==================================================
+    # 3. FRIENDS INFLUENCE (INTENSITY FIXED)
+    # ==================================================
+    col_chart, col_text = st.columns([2, 1])
+    trends = trending_among_friends(user_id)
+
+    with col_chart:
+        st.subheader("Friends Influence")
+
+        if trends:
+            trends_df = pd.DataFrame(trends, columns=["Movie", "Count"])
+            trends_df = trends_df.sort_values("Count", ascending=True)
+
+            palette = sns.color_palette("Reds", len(trends_df))
+
+            fig, ax = plt.subplots(figsize=(7, 4))
+            sns.barplot(
+                data=trends_df,
+                x="Count",
+                y="Movie",
+                palette=palette,
+                ax=ax
+            )
+
+            ax.set_title("Trending Among Friends")
+            ax.set_xlabel("Frequency")
+            ax.set_ylabel("")
+            plt.tight_layout()
+            st.pyplot(fig)
+        else:
+            st.info("No friends activity available yet.")
+
+    with col_text:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.markdown("### Explanation")
+        st.write(
+            "Movies with darker bars are more popular among your friends. "
+            "These social signals subtly influence recommendations."
+        )
+
+    st.divider()
+
+    # ==================================================
+    # 4. WATCHING CONSISTENCY (DATE FIXED)
+    # ==================================================
+    col_chart, col_text = st.columns([2, 1])
+    activity = fetch_diary_activity(user_id)
+
+    with col_chart:
+        st.subheader("Watching Consistency")
+
+        if activity:
+            activity_df = pd.DataFrame(activity, columns=["Date", "Movies"])
+
+            fig, ax = plt.subplots(figsize=(8, 3.5))
+            sns.lineplot(
+                data=activity_df,
+                x="Date",
+                y="Movies",
+                linewidth=2.5,
+                color="#16A34A",
+                ax=ax
+            )
+
+            ax.scatter(
+                activity_df["Date"],
+                activity_df["Movies"],
+                c=activity_df["Movies"],
+                cmap="Greens",
+                s=60,
+                label="Movies Watched"
+            )
+
+            ax.xaxis.set_major_locator(
+                mdates.AutoDateLocator(minticks=4, maxticks=7)
+            )
+            ax.xaxis.set_major_formatter(
+                mdates.DateFormatter("%d %b")
+            )
+
+            plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
+
+            ax.set_title("Viewing Activity Over Time")
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Movies Watched")
+            ax.legend()
+            plt.tight_layout()
+            st.pyplot(fig)
+        else:
+            st.info("No diary activity available yet.")
+
+    with col_text:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.markdown("### Explanation")
+        st.write(
+            "Darker points indicate higher activity days. "
+            "This timeline reveals whether watching behavior is consistent or sporadic."
+        )
+
+    st.divider()
+
+    # ==================================================
+    # 5. TASTE DIVERSITY
+    # ==================================================
+    col_chart, col_text = st.columns([2, 1])
+
+    with col_chart:
+        st.subheader("Taste Diversity")
+
+        if genres:
+            colors = sns.color_palette("Blues", len(genre_df))
+
+            fig, ax = plt.subplots(figsize=(6, 6))
+            ax.pie(
+                genre_df["Count"],
+                labels=genre_df["Genre"],
+                autopct="%1.1f%%",
+                startangle=140,
+                colors=colors
+            )
+
+            ax.set_title("Genre Distribution")
+            plt.tight_layout()
+            st.pyplot(fig)
+        else:
+            st.info("No diversity data available.")
+
+    with col_text:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.markdown("### Explanation")
+        st.write(
+            "This chart shows how evenly preferences are spread across genres. "
+            "A balanced chart indicates exploration, while dominance indicates specialization."
+        )
+
+    st.divider()
+
+    # ==================================================
+    # 6. RECOMMENDATION READINESS
+    # ==================================================
+    st.subheader("Recommendation Readiness")
+    st.caption("Current strength of personalization")
+
+    reviews, diary, watchlist = fetch_user_activity_counts(user_id)
+    readiness_score = min((reviews * 2 + diary + watchlist) * 10, 100)
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Reviews", reviews)
+    col2.metric("Diary Entries", diary)
+    col3.metric("Watchlist", watchlist)
+
+    st.progress(readiness_score / 100)
+    st.caption(f"Personalization Strength: {readiness_score}%")
+
 elif st.session_state.view == "cinemamaya":
 
     st.markdown('<div class="cinemamaya">', unsafe_allow_html=True)
