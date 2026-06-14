@@ -36,4 +36,5 @@ streamlit run app.py
 ## how to use
 To use the code base.. make sure you create the tables accordingly .. as mentioned in ER diagram and start Installation steps
 
-https://github.com/LalithAdityaReddy/cinegraph/issues/1#issue-4657883123
+
+[Click here to watch the demo](https://github.com/LalithAdityaReddy/cinegraph/issues/1#issue-4657883123)
